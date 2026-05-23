@@ -1,88 +1,46 @@
-#include <iostream>
-#include <cmath>
+import Data.List (foldl')
 
-// return sum of 1^2 + 2^2 + 3^2 + 4^2 + ... + n^2 mod modulo
-// note: needs GCC's 128 bit integers (not available on Visual C++)
-unsigned int pyramidal(unsigned long long n, unsigned int modulo)
-{
-  // inspired by https://stackoverflow.com/questions/39826483/square-pyramidal-number-of-int32-modulo-some-m-using-only-int64-intermediates
-  unsigned __int128 nn = n;
-  // solve n * (n + 1) * (2n + 1) / 6
-  // either nn or nn+1 is even => their product must be divisible by 2
-  auto x = nn * (nn + 1) / 2;
-  auto y = 2 * n + 1;
-  // now equation becomes x * y / 3 (mod modulo)
+-- Сумма 1^2 + 2^2 + ... + n^2 (mod modulo)
+-- В Haskell Integer произвольной точности — __int128 не нужен
+pyramidal :: Integer -> Integer -> Integer
+pyramidal n modulo =
+  (n * (n + 1) * (2 * n + 1) `div` 6) `mod` modulo
 
-  // is x a multiple of 3 ?
-  auto div3 = x / 3;
-  if (div3 * 3 == x)
-    return ((div3 % modulo) * y) % modulo;
+-- Целочисленный квадратный корень
+isqrt :: Integer -> Integer
+isqrt = floor . (sqrt :: Double -> Double) . fromIntegral
 
-  // no, y must be a multiple of 3
-  return (x % modulo) * (y / 3) % modulo;
-}
+solve :: Integer -> Integer -> Integer
+solve n modulo = (sum1 + sum2) `mod` modulo
+  where
+    threshold = isqrt n
 
-// count all divisors
-unsigned int solve(unsigned long long n, unsigned int modulo)
-{
-  unsigned long long sum = 0;
+    -- Малые делители: i от 1 до sqrt(n)
+    sum1 = foldl' step 0 [1..threshold]
+      where
+        step acc i =
+          let cnt = (n `div` i) `mod` modulo
+              sq  = (i * i)     `mod` modulo
+          in (acc + cnt * sq) `mod` modulo
 
-  // for each number i there is a second divisor n/i (integer division)
-  // for i < sqrt(n) those second divisors are "unique"
-  // for i > sqrt(n) several i share the same second divisor n/i
-  unsigned int threshold = sqrt(n);
+    -- Крупные делители: группируем по одинаковому значению n/i
+    sum2 = foldl' step 0 [1..(n `div` (threshold + 1))]
+      where
+        step acc j =
+          let from  = n `div` j
+              to    = n `div` (j + 1)
+              pFrom = pyramidal from modulo
+              pTo   = pyramidal to   modulo
+              -- +modulo чтобы не уйти в отрицательные
+              diff  = if pFrom < pTo
+                        then pFrom + modulo - pTo
+                        else pFrom - pTo
+          in (acc + j * diff `mod` modulo) `mod` modulo
 
-  // look at small divisors
-  for (unsigned long long i = 1; i <= threshold; i++)
-  {
-    // each divisor-th number is a multiple of divisor
-    auto count  = (n / i) % modulo;
-    // square (reduce with modulo)
-    auto square = (i * i) % modulo;
-
-    // add
-    sum += (count * square) % modulo;
-  }
-
-  // apply the same logic in reverse order:
-  // for each divisor i there is a divisor j = n / i
-  for (unsigned int j = 1; j <= n / (threshold + 1); j++)
-  {
-    auto from = n / j;
-    auto to   = n / (j + 1);
-
-    unsigned long long sumOfConsecutiveSquares = 0;
-    // note: from > to, therefore decrement instead of increment
-    /*for (unsigned long long k = from; k > to; k--)
-    {
-      auto square = (k * k) % modulo;
-      sumOfConsecutiveSquares += square;
-      sumOfConsecutiveSquares %= modulo;
-    }*/
-
-    // same as the for-loop above
-    auto squareSumFrom = pyramidal(from, modulo); // sum of squares <= from
-    auto squareSumTo   = pyramidal(to,   modulo); // sum of squares <= to
-    // add modulo to prevent negative numbers
-    if (squareSumFrom < squareSumTo)
-      squareSumFrom += modulo;
-    sumOfConsecutiveSquares = squareSumFrom - squareSumTo;
-
-    // those squares can be found "j" times
-    sum += (j * sumOfConsecutiveSquares) % modulo;
-  }
-
-  // and again, take care of modulo
-  return sum % modulo;
-}
-
-int main()
-{
-  // 10^9
-  const auto Modulo = 1000000000;
-  // 10^15
-  auto n = 1000000000000000ULL;
-  std::cin >> n;
-  std::cout << solve(n, Modulo) << std::endl;
-  return 0;
-}
+main :: IO ()
+main = do
+  let modulo = 1000000000          -- 10^9
+  let defaultN = 1000000000000000  -- 10^15
+  line <- getLine
+  let n = if null line then defaultN else read line
+  print (solve n modulo)
