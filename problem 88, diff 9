@@ -1,0 +1,42 @@
+module Main where
+
+import Data.Array
+import Data.Array.ST
+import Data.List (nub)
+import Control.Monad (when, forM_)
+import Control.Monad.ST (ST)
+
+solve :: Int -> Int
+solve limit = sum $ nub [minK ! k | k <- [2..limit]]
+  where
+    minK :: Array Int Int
+    minK = runSTArray $ do
+      arr <- newArray (0, limit) maxBound
+      forM_ [4 .. 2 * limit] $ \n ->
+        getMinK arr n n n 1 2
+      return arr
+
+    getMinK :: STArray s Int Int -> Int -> Int -> Int -> Int -> Int -> ST s ()
+    getMinK arr n product s depth minFactor
+      | product == 1 =
+          updateMin arr n (depth + s - 1)
+      | otherwise = do
+          when (depth > 1) $ do
+            when (product == s) $
+              updateMin arr n depth
+            updateMin arr n (depth + s - product)
+          forM_ [minFactor .. isqrt product] $ \i ->
+            when (product `mod` i == 0) $
+              getMinK arr n (product `div` i) (s - i) (depth + 1) i
+
+    updateMin :: STArray s Int Int -> Int -> Int -> ST s ()
+    updateMin arr n k =
+      when (k >= 2 && k <= limit) $ do
+        cur <- readArray arr k
+        when (n < cur) $ writeArray arr k n
+
+    isqrt :: Int -> Int
+    isqrt = floor . sqrt . (fromIntegral :: Int -> Double)
+
+main :: IO ()
+main = print $ solve 12000
