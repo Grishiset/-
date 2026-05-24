@@ -1,0 +1,44 @@
+module Main where
+
+-- Вычислить u(x) = sum(coeffs[i] * x^i)
+sequencePoly :: [Rational] -> Rational -> Rational
+sequencePoly coeffs x = sum $ zipWith (\c i -> c * x^i) coeffs [0::Int ..]
+
+-- Интерполяция Лагранжа:
+-- по значениям f(1), f(2), ..., f(n) предсказать f(n+1)
+lagrange :: [Rational] -> Rational
+lagrange known = sum [term i | i <- [1..next-1]]
+  where
+    next = length known + 1
+    term i =
+      let num = product [fromIntegral (next - j) | j <- [1..next-1], j /= i]
+          den = product [fromIntegral (i - j)    | j <- [1..next-1], j /= i]
+      in (known !! (i-1)) * (num / den)
+
+-- Интерполяция Ньютона (разделённые разности):
+-- по значениям f(1), f(2), ..., f(n) предсказать f(n+1)
+newton :: [Rational] -> Rational
+newton known = go known 1 (known !! 0)
+  where
+    k = length known
+    go _  j acc | j > k - 1 = acc
+    go ks j acc =
+      let ks'      = zipWith (\a b -> (b - a) / fromIntegral j) ks (tail ks)
+          multDiff = product [fromIntegral k - fromIntegral i | i <- [0..j-1]]
+          acc'     = acc + (ks' !! 0) * multDiff
+      in go ks' (j+1) acc'
+
+-- Основное вычисление для ORIGINAL-режима:
+-- коэффициенты полинома u_n = 1 - n + n^2 - ... + n^10
+solveOriginal :: [Rational] -> Integer
+solveOriginal coeffs = floor total
+  where
+    points = [sequencePoly coeffs (fromIntegral x) | x <- [1 .. length coeffs - 1]]
+    -- Накапливаем точки и на каждом шаге предсказываем следующую
+    bops   = [lagrange (take k points) | k <- [1 .. length coeffs - 1]]
+    total  = sum bops
+
+main :: IO ()
+main = do
+  let coeffs = [1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1] :: [Rational]
+  print $ solveOriginal coeffs
