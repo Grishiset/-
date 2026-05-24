@@ -1,0 +1,37 @@
+module Main where
+
+import Data.Array
+
+-- F(m, n): количество способов заполнить ряд длины n
+-- блоками минимальной длины m (между блоками >= 1 чёрная клетка)
+fillCount :: Int -> Int -> Integer
+fillCount m maxN = table ! maxN
+  where
+    -- Мемоизация через массив
+    table :: Array Int Integer
+    table = array (0, maxN) [(n, go n) | n <- [0..maxN]]
+
+    go :: Int -> Integer
+    go 0 = 1
+    go space =
+      -- Вариант 1: следующая клетка чёрная
+      let noBlock = table ! (space - 1)
+      -- Варианты 2+: вставляем красный блок длиной block в начало
+          withBlocks = sum [ table ! next
+                           | block <- [m..space]
+                           , let after = space - block
+                           , let next  = if after > 0 then after - 1 else 0
+                           ]
+      in noBlock + withBlocks
+
+-- Найти наименьшее n, при котором F(m, n) > limit
+findMinN :: Int -> Integer -> Int
+findMinN m limit = head [n | n <- [1..], fillCount m n > limit]
+
+main :: IO ()
+main = do
+  -- Задача 115: m=50, limit=1_000_000
+  let m     = 50
+      limit = 1000000 :: Integer
+  putStrLn $ "Answer (m=" ++ show m ++ ", limit=" ++ show limit ++ "): "
+          ++ show (findMinN m limit)
