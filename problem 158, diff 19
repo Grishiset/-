@@ -1,0 +1,23 @@
+module Main where
+
+-- C(n, k): количество способов выбрать k элементов из n
+choose :: Integer -> Integer -> Integer
+choose n k = foldl (\acc i -> acc * (n - i + 1) `div` i) 1 [1..k]
+
+-- Количество строк длины n из алфавита размера alpha,
+-- в которых ровно один символ лексически больше левого соседа
+count :: Integer -> Integer -> Integer
+count n alpha
+  | n > alpha = 0
+  | otherwise =
+      -- сумма по всем позициям "разрыва" i = 1..n-1:
+      -- C(n, i) - 1 (вычитаем 1: случай без разрыва)
+      let inner = sum [choose n i - 1 | i <- [1..n-1]]
+      in inner * choose alpha n
+
+-- Максимум p(n) по всем длинам от 2 до alpha
+solve :: Integer -> Integer
+solve alpha = maximum [count n alpha | n <- [2..alpha]]
+
+main :: IO ()
+main = print $ solve 26
