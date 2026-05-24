@@ -1,0 +1,65 @@
+module Main where
+
+import Data.List (nub)
+
+-- Простые делители числа n (без повторений)
+primeFactors :: Integer -> [Integer]
+primeFactors n = nub $ go n 2
+  where
+    go 1 _ = []
+    go m d
+      | d * d > m = [m]
+      | m `mod` d == 0 = d : go (m `div` d) d
+      | otherwise       = go m (d + 1)
+
+-- Возведение в степень по модулю
+powMod :: Integer -> Integer -> Integer -> Integer
+powMod b e m = go b e 1
+  where
+    go _ 0 acc = acc
+    go base exp acc
+      | odd exp   = go (base * base `mod` m) (exp `div` 2) (acc * base `mod` m)
+      | otherwise = go (base * base `mod` m) (exp `div` 2) acc
+
+-- Расширенный алгоритм Евклида: ax + by = gcd(a,b)
+extGcd :: Integer -> Integer -> (Integer, Integer, Integer)
+extGcd 0 b = (b, 0, 1)
+extGcd a b =
+  let (g, x, y) = extGcd (b `mod` a) a
+  in (g, y - (b `div` a) * x, x)
+
+-- Модульный обратный (работает для любых взаимно простых a и m)
+modInverse :: Integer -> Integer -> Integer
+modInverse a m =
+  let (_, x, _) = extGcd (a `mod` m) m
+  in (x `mod` m + m) `mod` m
+
+-- Китайская теорема об остатках:
+-- x = a1 (mod n1), x = a2 (mod n2)
+crt :: Integer -> Integer -> Integer -> Integer -> Integer
+crt a1 a2 n1 n2 =
+  let p = modInverse n1 n2
+      q = modInverse n2 n1
+  in (a1 * q * n2 + a2 * p * n1) `mod` (n1 * n2)
+
+-- Найти все x в [0, p) такие что x^3 = 1 (mod p)
+cubicRoots :: Integer -> [Integer]
+cubicRoots p = [x | x <- [0..p-1], powMod x 3 p == 1]
+
+-- Сумма всех x в [0, N) с x^3 = 1 (mod N), минус тривиальное решение x=1
+compute :: Integer -> Integer
+compute n = total - 1
+  where
+    factors = primeFactors n
+    (initSols, initMod) = (cubicRoots (head factors), head factors)
+    (finalSols, _) = foldl combine (initSols, initMod) (tail factors)
+    combine (sols, curMod) p =
+      let roots   = cubicRoots p
+          newSols = [crt a b curMod p | a <- sols, b <- roots]
+      in (newSols, curMod * p)
+    total = sum finalSols
+
+main :: IO ()
+main = do
+  let n = 13082761331670030 :: Integer
+  print $ compute n
