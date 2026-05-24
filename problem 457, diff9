@@ -1,0 +1,101 @@
+module Main where
+
+import Data.Array.ST
+import Data.Array
+import Control.Monad (forM_)
+
+-- Решето Эратосфена через изменяемый массив
+primesUpTo :: Int -> [Int]
+primesUpTo n = [i | (i, True) <- assocs sieve, i >= 2]
+  where
+    sieve :: Array Int Bool
+    sieve = runSTArray $ do
+      arr <- newArray (0, n) True
+      writeArray arr 0 False
+      writeArray arr 1 False
+      forM_ [2..floor (sqrt (fromIntegral n :: Double))] $ \i -> do
+        isPrime <- readArray arr i
+        if isPrime
+          then forM_ [i*i, i*i+i..n] $ \j -> writeArray arr j False
+          else return ()
+      return arr
+
+-- Символ Лежандра (a/p)
+legendreSymbol :: Integer -> Integer -> Int
+legendreSymbol a p
+  | t == p - 1 = -1
+  | otherwise  = fromInteger t
+  where t = powMod a ((p - 1) `div` 2) p
+
+-- Быстрое возведение в степень по модулю
+powMod :: Integer -> Integer -> Integer -> Integer
+powMod b e m = go b e 1
+  where
+    go _ 0 acc = acc
+    go base exp acc
+      | odd exp   = go (base * base `mod` m) (exp `div` 2) (acc * base `mod` m)
+      | otherwise = go (base * base `mod` m) (exp `div` 2) acc
+
+-- Модульный обратный через малую теорему Ферма (m простое)
+modInverse :: Integer -> Integer -> Integer
+modInverse a m = powMod a (m - 2) m
+
+-- Алгоритм Тонелли-Шэнкса: найти sqrt(a) mod p
+tonelliShanks :: Integer -> Integer -> Integer
+tonelliShanks a p
+  | legendreSymbol a p /= 1 = 0
+  | p `mod` 4 == 3          = powMod a ((p + 1) `div` 4) p
+  | otherwise               = loop x0 b0 g0 e0
+  where
+    -- p - 1 = s * 2^e
+    factor2 x e = if even x then factor2 (x `div` 2) (e + 1) else (x, e)
+    (s, e0) = factor2 (p - 1) 0
+    -- Квадратичный невычет
+    nr = head [x | x <- [2..], legendreSymbol x p == -1]
+    x0 = powMod a ((s + 1) `div` 2) p
+    b0 = powMod a s p
+    g0 = powMod nr s p
+    -- Итерации
+    findM b r = length $ takeWhile (/= 1) $ take r $
+                iterate (\t -> t * t `mod` p) b
+    loop x b g r
+      | m == 0    = x
+      | otherwise = loop x' b' g' m
+      where
+        m  = findM b r
+        gs = powMod g (2 ^ (r - m - 1)) p
+        g' = gs * gs `mod` p
+        x' = x * gs `mod` p
+        b' = b * g' `mod` p
+
+-- R(p): наименьшее n >= 1 с f(n) = n^2 - 3n - 1 ≡ 0 (mod p^2)
+computeR :: Integer -> Integer
+computeR 3 = 5
+computeR p  =
+  let p2   = p * p
+      d    = tonelliShanks 13 p
+      -- Подъём Гензеля до mod p^2
+      k    = ((13 - d * d) `div` p) * modInverse (2 * d) p `mod` p
+      n    = (p * k + d) `mod` p2
+      inv2 = (p2 - 1) `div` 2
+      n1   = ((n + 3) * inv2) `mod` p2 + 3
+      n2   = ((p2 - n + 3) * inv2) `mod` p2 + 3
+  in min n1 n2
+
+-- SR(limit) = сумма R(p) по простым p <= limit
+computeSR :: Int -> Integer
+computeSR limit = sum [computeR (toInteger p) | p <- tail ps, qual p]
+  where
+    ps     = primesUpTo limit
+    qual p = p == 3 || legendreSymbol 13 (toInteger p) == 1
+
+main :: IO ()
+main = do
+  putStr "Input an integer: "
+  input <- getLine
+  let a = read input :: Int
+  if a >= 5 * 10^(6 :: Int)
+    then putStrLn "Solve it yourself!"
+    else do
+      let result = computeSR a
+      putStrLn $ "SR(" ++ show a ++ ") = " ++ show result
