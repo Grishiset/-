@@ -1,0 +1,28 @@
+module Main where
+
+import Data.Array
+import Data.Bits
+
+maxDigits :: Int
+maxDigits = 40
+
+allDigits :: Int
+allDigits = (1 `shiftL` 10) - 1
+
+cache :: Array (Int, Int, Int) Integer
+cache = array bnds [(idx, go idx) | idx <- range bnds]
+  where
+    bnds = ((0, 0, 1), (1023, 9, maxDigits))
+    go (mask, digit, left) =
+      let mask' = mask .|. (1 `shiftL` digit)
+      in if left == 1
+           then if mask' == allDigits then 1 else 0
+           else let down = if digit > 0 then cache ! (mask', digit - 1, left - 1) else 0
+                    up   = if digit < 9 then cache ! (mask', digit + 1, left - 1) else 0
+                in down + up
+
+solve :: Int -> Integer
+solve n = sum [cache ! (0, d, len) | len <- [1..n], d <- [1..9]]
+
+main :: IO ()
+main = print $ solve maxDigits
